@@ -610,7 +610,7 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 							  int iTime)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	FILE *pFile = fopen(pszTransFile, iTime <= 1 ? "w" : "w+");
+	FILE *pFile = fopen(pszTransFile, iTime <= 1 ? "w" : "a");
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	if (NULL == pFile) {
@@ -662,6 +662,50 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 	}
 
 	fclose(pFile);
+	return true;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool Check(const std::map<__int64, std::string> &mapOrgInfo,
+		   const std::map<__int64, std::string> &mapNewIndex,
+		   int nTimeMax,
+		   std::map<int, int> mapLookTrans[TIME_LIMIT],
+		   std::map<int, int> mapWeaponTrans[TIME_LIMIT],
+		   std::map<int, int> mapMotionTrans[TIME_LIMIT])
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	int nCount = 0;
+	std::map<__int64, std::string>::const_iterator it = mapOrgInfo.begin();
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (; it != mapOrgInfo.end(); ++it) {
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		__int64 i64Index = it->first;
+		std::string strRes = it->second;
+		std::string strResCmp = GetMotionResByRuduced(i64Index, mapNewIndex, nTimeMax, mapLookTrans, mapWeaponTrans,
+													  mapMotionTrans);
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		if (strRes != strResCmp) {
+
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			__int64 i64IndexInfo = GetMotionIndexByRuduced(i64Index, mapNewIndex, nTimeMax, mapLookTrans,
+														   mapWeaponTrans, mapMotionTrans);
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+			printf("check error Index: %I64, Res1 %s IndexReduce %I64d Res2 %s", i64Index, strRes.c_str(), i64IndexInfo,
+				   strResCmp.c_str());
+			return false;
+		}
+
+		++nCount;
+		if (nCount % 10000 == 0) {
+			printf("checked %d/%d", nCount, mapOrgInfo.size());
+		}
+	}
+
 	return true;
 }
 
@@ -721,6 +765,8 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	int nAmount = GetPrivateProfileInt(pszSectionTime, pszKeyAmount, TIME_LIMIT, pszTransFile);
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	Check(mapOrgInfo, mapNewIndex, nAmount, mapLookTrans, mapWeaponTrans, mapMotionTrans);
 
 	while (gets(szTmp)) {
 
