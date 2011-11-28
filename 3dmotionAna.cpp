@@ -179,7 +179,7 @@ __int64 ResPathTransIndex(const std::string &strIndex)
 	//~~~~~~~~
 
 	if (3 == sscanf(strRet.c_str(), "%d%d%d", &nLook, &nWeapon, &nMotion)) {
-		return nLook * 10000000i64 + nWeapon * 10000 + nMotion;
+		return nLook * (__int64) 10000000 + nWeapon * 10000 + nMotion;
 	}
 
 	return 0;
@@ -192,6 +192,119 @@ bool GetIndexInfo(__int64 i64Index, int &rLook, int &rWeapon, int &rMotion)
 	rLook = i64Index / 10000000;
 	rWeapon = i64Index / 10000 % 1000;
 	rMotion = i64Index % 10000;
+	return true;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+int CalMapMaxSecondFirst(const std::map<int, int> &mapCount)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	int nMax = 0;
+	int nFirst = 0;
+	std::map<int, int>::const_iterator it = mapCount.begin();
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (; it != mapCount.end(); ++it) {
+		if (it->second > nMax) {
+			nMax = it->second;
+			nFirst = it->first;
+		}
+	}
+
+	return nFirst;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool CalcTransTable(const std::vector<FORMAT_RES_DATA> &vecResData,
+					std::map<int, int> &mapLookTrans,
+					std::map<int, int> &mapWeaponTrans,
+					std::map<int, int> &mapMotionTrans)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::vector<FORMAT_RES_DATA>::const_iterator it = vecResData.begin();
+	std::map<int, std::map<int, int> > mapLookTransCount;
+	std::map<int, std::map<int, int> > mapWeaponTransCount;
+	std::map<int, std::map<int, int> > mapMotionTransCount;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (; it != vecResData.end(); ++it) {
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		const FORMAT_RES_DATA &rData = *it;
+		const std::vector<__int64> &rVecIndex = rData.vecIndex;
+		__int64 i64IndexRes = ResPathTransIndex(rData.strRes);
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		if (i64IndexRes > 0) {
+
+			//~~~~~~~~~~~~~~~
+			int nResLook = 0;
+			int nResWeapon = 0;
+			int nResMotion = 0;
+			//~~~~~~~~~~~~~~~
+
+			GetIndexInfo(i64IndexRes, nResLook, nResWeapon, nResMotion);
+
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			std::vector<__int64>::const_iterator itIndex = rVecIndex.begin();
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+			for (; itIndex != rVecIndex.end(); ++itIndex) {
+
+				//~~~~~~~~~~~~~~~~~~~~~~~~
+				int nIndexLook = 0;
+				int nIndexWeapon = 0;
+				int nIndexMotion = 0;
+				__int64 i64Index = *itIndex;
+				//~~~~~~~~~~~~~~~~~~~~~~~~
+
+				GetIndexInfo(i64Index, nIndexLook, nIndexWeapon, nIndexMotion);
+				++mapLookTransCount[nIndexLook][nResLook];
+				++mapWeaponTransCount[nIndexWeapon][nResWeapon];
+				++mapMotionTransCount[nIndexMotion][nResMotion];
+			}
+		}
+	}
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<int, std::map<int, int> >::const_iterator itMap;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (itMap = mapLookTransCount.begin(); itMap != mapLookTransCount.end(); ++itMap) {
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		std::map<int, int>::const_iterator it;
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		for (it = itMap->second.begin(); it != itMap->second.end(); ++it) {
+			mapLookTrans[itMap->first] = CalMapMaxSecondFirst(itMap->second);
+		}
+	}
+
+	for (itMap = mapWeaponTransCount.begin(); itMap != mapWeaponTransCount.end(); ++itMap) {
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		std::map<int, int>::const_iterator it;
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		for (it = itMap->second.begin(); it != itMap->second.end(); ++it) {
+			mapWeaponTrans[itMap->first] = CalMapMaxSecondFirst(itMap->second);
+		}
+	}
+
+	for (itMap = mapMotionTransCount.begin(); itMap != mapMotionTransCount.end(); ++itMap) {
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		std::map<int, int>::const_iterator it;
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		for (it = itMap->second.begin(); it != itMap->second.end(); ++it) {
+			mapMotionTrans[itMap->first] = CalMapMaxSecondFirst(itMap->second);
+		}
+	}
+
 	return true;
 }
 
@@ -360,6 +473,7 @@ int main()
 	std::map<int, int> mapMotionTrans;
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+	CalcTransTable(vecResData, mapLookTrans, mapWeaponTrans, mapMotionTrans);
 	SimpleReduce(vecResData, mapNewIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
 
 	OutputSimpleReduceResult(mapNewIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
