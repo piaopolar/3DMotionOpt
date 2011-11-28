@@ -20,9 +20,7 @@ DWORD TimeGet(void)
 
 // =====================================================================================================================
 // =======================================================================================================================
-bool ReadOrgFile(const char *psz3dmotion,
-				 std::map<__int64, std::string> &mapOrgInfo,
-				 std::map<std::string, std::vector<__int64> > &mapRes)
+bool ReadOrgFile(const char *psz3dmotion, std::map<__int64, std::string> &mapOrgInfo)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	FILE *pFile = fopen(psz3dmotion, "r");
@@ -49,7 +47,6 @@ bool ReadOrgFile(const char *psz3dmotion,
 
 		if (2 == sscanf(szTmp, "%I64d=%s", &i64Index, szRes)) {
 			mapOrgInfo[i64Index] = szRes;
-			mapRes[szRes].push_back(i64Index);
 		} else {
 			printf("error line [%s]\n", szTmp);
 		}
@@ -57,7 +54,7 @@ bool ReadOrgFile(const char *psz3dmotion,
 
 	fclose(pFile);
 
-	printf("Index size %d   Res size %d\n", mapOrgInfo.size(), mapRes.size());
+	printf("Org File Index size %d\n", mapOrgInfo.size());
 	return true;
 }
 
@@ -74,8 +71,17 @@ struct FORMAT_RES_DATA
 // =====================================================================================================================
 // =======================================================================================================================
 
-bool AnaResData(std::map<std::string, std::vector<__int64> > &mapRes, std::vector<FORMAT_RES_DATA> &vecResData)
+bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORMAT_RES_DATA> &vecResData)
 {
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<std::string, std::vector<__int64> > mapRes;
+	std::map<__int64, std::string>::const_iterator itIndex;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (itIndex = mapIndex.begin(); itIndex != mapIndex.end(); ++itIndex) {
+		mapRes[itIndex->second].push_back(itIndex->first);
+	}
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::map<std::string, std::vector<__int64> >::const_iterator it = mapRes.begin();
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -222,6 +228,10 @@ bool CalcTransTable(const std::vector<FORMAT_RES_DATA> &vecResData,
 					std::map<int, int> &mapWeaponTrans,
 					std::map<int, int> &mapMotionTrans)
 {
+	mapLookTrans.clear();
+	mapWeaponTrans.clear();
+	mapMotionTrans.clear();
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::vector<FORMAT_RES_DATA>::const_iterator it = vecResData.begin();
 	std::map<int, std::map<int, int> > mapLookTransCount;
@@ -316,6 +326,8 @@ bool SimpleReduce(const std::vector<FORMAT_RES_DATA> &vecResData,
 				  std::map<int, int> &mapWeaponTrans,
 				  std::map<int, int> &mapMotionTrans)
 {
+	mapNewIndex.clear();
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::vector<FORMAT_RES_DATA>::const_iterator it = vecResData.begin();
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -328,7 +340,21 @@ bool SimpleReduce(const std::vector<FORMAT_RES_DATA> &vecResData,
 		__int64 i64IndexRes = ResPathTransIndex(rData.strRes);
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		if (i64IndexRes > 0) {
+		if (i64IndexRes <= 0) {
+
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			std::vector<__int64>::const_iterator itIndex = rVecIndex.begin();
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+			for (; itIndex != rVecIndex.end(); ++itIndex) {
+
+				//~~~~~~~~~~~~~~~~~~~~~~~~
+				__int64 i64Index = *itIndex;
+				//~~~~~~~~~~~~~~~~~~~~~~~~
+
+				mapNewIndex[i64Index] = rData.strRes;
+			}
+		} else {
 			mapNewIndex[i64IndexRes] = rData.strRes;
 
 			//~~~~~~~~~~~~~~~
@@ -390,7 +416,7 @@ bool SimpleReduce(const std::vector<FORMAT_RES_DATA> &vecResData,
 		}
 	}
 
-	printf("SimpleReduce End %d %d %d %d", mapNewIndex.size(), mapLookTrans.size(), mapWeaponTrans.size(),
+	printf("SimpleReduce End %d %d %d %d\n", mapNewIndex.size(), mapLookTrans.size(), mapWeaponTrans.size(),
 		   mapMotionTrans.size());
 	return true;
 }
@@ -451,32 +477,45 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 // =======================================================================================================================
 int main()
 {
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	char szTmp[_MAX_STRING];
 	std::map<__int64, std::string> mapOrgInfo;
-	std::map<std::string, std::vector<__int64> > mapRes;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<__int64, std::string> mapIndex;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	gets(szTmp);
-	ReadOrgFile(szTmp, mapOrgInfo, mapRes);
+	ReadOrgFile(szTmp, mapOrgInfo);
+	mapIndex = mapOrgInfo;
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	std::vector<FORMAT_RES_DATA> vecResData;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	for (int iTime = 1;; ++iTime) {
+		printf("Time %d: ", iTime);
 
-	AnaResData(mapRes, vecResData);
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~
+		const int LIMIT_SIZE = 100000;
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	std::map<__int64, std::string> mapNewIndex;
-	std::map<int, int> mapLookTrans;
-	std::map<int, int> mapWeaponTrans;
-	std::map<int, int> mapMotionTrans;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		if (mapIndex.size() <= LIMIT_SIZE) {
+			printf("IndexSize %d <= %d, done\n", iTime, mapIndex.size(), LIMIT_SIZE);
+			break;
+		}
 
-	CalcTransTable(vecResData, mapLookTrans, mapWeaponTrans, mapMotionTrans);
-	SimpleReduce(vecResData, mapNewIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		std::vector<FORMAT_RES_DATA> vecResData;
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	OutputSimpleReduceResult(mapNewIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
+		AnaResData(mapIndex, vecResData);
+		printf("IndexSize %d ResSize %d\n", mapIndex.size(), vecResData.size());
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		std::map<int, int> mapLookTrans;
+		std::map<int, int> mapWeaponTrans;
+		std::map<int, int> mapMotionTrans;
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		CalcTransTable(vecResData, mapLookTrans, mapWeaponTrans, mapMotionTrans);
+		SimpleReduce(vecResData, mapIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
+		OutputSimpleReduceResult(mapIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
+	}
 
 	while (gets(szTmp)) {
 
