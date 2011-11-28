@@ -179,7 +179,7 @@ __int64 ResPathTransIndex(const std::string &strIndex)
 	//~~~~~~~~
 
 	if (3 == sscanf(strRet.c_str(), "%d%d%d", &nLook, &nWeapon, &nMotion)) {
-		return nLook * 10000000000i64 + nWeapon * 10000000 + nMotion;
+		return nLook * 10000000i64 + nWeapon * 10000 + nMotion;
 	}
 
 	return 0;
