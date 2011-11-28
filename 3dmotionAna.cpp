@@ -119,8 +119,8 @@ bool AnaResData(std::map<std::string, std::vector<__int64> > &mapRes, std::vecto
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		for (; it != data.vecIndex.end(); ++it) {
-			fprintf(pFile, "	%I64d	%03I64d,%03I64d,%03I64d,%04I64d\n", *it, *it / 10000000000, *it / 10000000 % 1000,
-					*it / 10000 % 1000, *it % 10000);
+			fprintf(pFile, "	%I64d	%03I64d,%03I64d,%03I64d,%04I64d	%s\n", *it, *it / 10000000000, *it / 10000000 % 1000,
+					*it / 10000 % 1000, *it % 10000, data.strRes.c_str());
 		}
 
 		fprintf(pFile, "\n\n");
@@ -129,6 +129,208 @@ bool AnaResData(std::map<std::string, std::vector<__int64> > &mapRes, std::vecto
 
 	fclose(pFile);
 
+	return true;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool ReplaceString(std::string &str, const char *pszFind, const char *pszReplace)
+{
+	if (!pszFind || strlen(pszFind) <= 0) {
+		return false;
+	}
+
+	if (!pszReplace) {
+		return false;
+	}
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	int nLenFind = strlen(pszFind);
+	int nLenReplace = strlen(pszReplace);
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	std::string::size_type sizeIndex = str.find(pszFind);
+	while (sizeIndex != std::string::npos) {
+		str.replace(sizeIndex, nLenFind, pszReplace);
+		sizeIndex = str.find(pszFind, sizeIndex + nLenReplace);
+	}
+
+	return true;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+__int64 ResPathTransIndex(const std::string &strIndex)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::string strRet = strIndex;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	ReplaceString(strRet, ".c3", "");
+	ReplaceString(strRet, ".C3", "");
+	ReplaceString(strRet, "/", " ");
+	ReplaceString(strRet, "c3", "");
+	ReplaceString(strRet, "C3", "");
+
+	//~~~~~~~~
+	int nLook;
+	int nWeapon;
+	int nMotion;
+	//~~~~~~~~
+
+	if (3 == sscanf(strRet.c_str(), "%d%d%d", &nLook, &nWeapon, &nMotion)) {
+		return nLook * 10000000000i64 + nWeapon * 10000000 + nMotion;
+	}
+
+	return 0;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool GetIndexInfo(__int64 i64Index, int &rLook, int &rWeapon, int &rMotion)
+{
+	rLook = i64Index / 10000000;
+	rWeapon = i64Index / 10000 % 1000;
+	rMotion = i64Index % 10000;
+	return true;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool SimpleReduce(const std::vector<FORMAT_RES_DATA> &vecResData,
+				  std::map<__int64, std::string> &mapNewIndex,
+				  std::map<int, int> &mapLookTrans,
+				  std::map<int, int> &mapWeaponTrans,
+				  std::map<int, int> &mapMotionTrans)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::vector<FORMAT_RES_DATA>::const_iterator it = vecResData.begin();
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (; it != vecResData.end(); ++it) {
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		const FORMAT_RES_DATA &rData = *it;
+		const std::vector<__int64> &rVecIndex = rData.vecIndex;
+		__int64 i64IndexRes = ResPathTransIndex(rData.strRes);
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		if (i64IndexRes > 0) {
+			mapNewIndex[i64IndexRes] = rData.strRes;
+
+			//~~~~~~~~~~~~~~~
+			int nResLook = 0;
+			int nResWeapon = 0;
+			int nResMotion = 0;
+			//~~~~~~~~~~~~~~~
+
+			GetIndexInfo(i64IndexRes, nResLook, nResWeapon, nResMotion);
+
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			std::vector<__int64>::const_iterator itIndex = rVecIndex.begin();
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+			for (; itIndex != rVecIndex.end(); ++itIndex) {
+
+				//~~~~~~~~~~~~~~~~~~~~~~~~
+				int nIndexLook = 0;
+				int nIndexWeapon = 0;
+				int nIndexMotion = 0;
+				__int64 i64Index = *itIndex;
+				//~~~~~~~~~~~~~~~~~~~~~~~~
+
+				GetIndexInfo(i64Index, nIndexLook, nIndexWeapon, nIndexMotion);
+
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+				std::map<int, int>::const_iterator itFind;
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+				itFind = mapLookTrans.find(nIndexLook);
+				if (itFind == mapLookTrans.end()) {
+					mapLookTrans[nIndexLook] = nResLook;
+				}
+
+				if (mapLookTrans[nIndexLook] != nResLook) {
+					mapNewIndex[i64Index] = rData.strRes;
+					continue;
+				}
+
+				itFind = mapWeaponTrans.find(nIndexWeapon);
+				if (itFind == mapWeaponTrans.end()) {
+					mapWeaponTrans[nIndexWeapon] = nResWeapon;
+				}
+
+				if (mapWeaponTrans[nIndexWeapon] != nResWeapon) {
+					mapNewIndex[i64Index] = rData.strRes;
+					continue;
+				}
+
+				itFind = mapMotionTrans.find(nIndexMotion);
+				if (itFind == mapMotionTrans.end()) {
+					mapMotionTrans[nIndexMotion] = nResMotion;
+				}
+
+				if (mapMotionTrans[nIndexMotion] != nResMotion) {
+					mapNewIndex[i64Index] = rData.strRes;
+				}
+			}
+		}
+	}
+
+	printf("SimpleReduce End %d %d %d %d", mapNewIndex.size(), mapLookTrans.size(), mapWeaponTrans.size(),
+		   mapMotionTrans.size());
+	return true;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
+							  const std::map<int, int> &mapLookTrans,
+							  const std::map<int, int> &mapWeaponTrans,
+							  const std::map<int, int> &mapMotionTrans)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	FILE *pFile = fopen("Trans.out", "w");
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if (NULL == pFile) {
+		return false;
+	}
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	const int TRANS_TYPE = 3;
+	std::string strTitleArr[TRANS_TYPE] = { "look", "Weapon", "Motion" };
+	const std::map<int, int> mapTransArr[TRANS_TYPE] = { mapLookTrans, mapWeaponTrans, mapMotionTrans };
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (int i = 0; i < TRANS_TYPE; ++i) {
+		fprintf(pFile, "*%s\n", strTitleArr[i].c_str());
+
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		const std::map<int, int> &mapTrans = mapTransArr[i];
+		std::map<int, int>::const_iterator it = mapTrans.begin();
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		for (; it != mapTrans.end(); ++it) {
+			fprintf(pFile, "%d %d\n", it->first, it->second);
+		}
+	}
+
+	fclose(pFile);
+	pFile = fopen("New3dMotion.out", "w");
+	if (NULL == pFile) {
+		return false;
+	}
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<__int64, std::string>::const_iterator it = mapNewIndex.begin();
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	for (; it != mapNewIndex.end(); ++it) {
+		fprintf(pFile, "%I64d=%s\n", it->first, it->second.c_str());
+	}
+
+	fclose(pFile);
 	return true;
 }
 
@@ -150,6 +352,17 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	AnaResData(mapRes, vecResData);
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<__int64, std::string> mapNewIndex;
+	std::map<int, int> mapLookTrans;
+	std::map<int, int> mapWeaponTrans;
+	std::map<int, int> mapMotionTrans;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	SimpleReduce(vecResData, mapNewIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
+
+	OutputSimpleReduceResult(mapNewIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
 
 	while (gets(szTmp)) {
 
