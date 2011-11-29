@@ -16,7 +16,6 @@ const char *pszTransFile = "./Trans.ini";
 const char *pszSectionTime = "Time";
 const char *pszKeyAmount = "Amount";
 const char *pszNewMotionFile = "New3Dmotion.ini";
-const int TIME_LIMIT = 1;
 
 const int _MAX_STRING = 1024;
 
@@ -118,8 +117,8 @@ bool ReadOrgFile(const char *psz3dmotion, std::map<__int64, std::string> &mapOrg
 bool ReadReducedFile(const char *pszTrans,
 					 const char *pszNewMotion,
 					 std::map<__int64, std::string> &mapNewIndex,
-					 std::map<int, int> mapLookTrans[TIME_LIMIT],
-					 std::map<int, int> mapWeaponMotionTrans[TIME_LIMIT])
+					 std::map<int, int> &mapLookTrans,
+					 std::map<int, int> &mapWeaponMotionTrans)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	FILE *pFile = fopen(pszNewMotion, "r");
@@ -153,20 +152,10 @@ bool ReadReducedFile(const char *pszTrans,
 
 	fclose(pFile);
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	int nAmount = GetPrivateProfileInt(pszSectionTime, pszKeyAmount, TIME_LIMIT, pszTransFile);
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 	pFile = fopen(pszTransFile, "r");
 	if (NULL == pFile) {
 		printf("open %s failed\n", pszTransFile);
 		return false;
-	}
-
-	while (fgets(szLine, sizeof(szLine), pFile)) {
-		if (strstr(szLine, "[Data]")) {
-			break;
-		}
 	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -178,21 +167,13 @@ bool ReadReducedFile(const char *pszTrans,
 
 		//~~~~~~~~~~~~~~~~~~~~
 		char szTmp[_MAX_STRING];
-		int nTime;
 		//~~~~~~~~~~~~~~~~~~~~
 
-		// std::string strTitleArr[TRANS_TYPE] = { "look", "Weapon", "Motion" };
-		if (szLine[0] == '[' && 2 == sscanf(szLine + 1, "%s %d", szTmp, &nTime)) {
-			if (nTime >= TIME_LIMIT) {
-				printf("error time %d, line [%s]", nTime, szLine);
-				--nTime;
-				return false;
-			}
-
+		if (szLine[0] == '*' && 1 == sscanf(szLine + 1, "%s", szTmp)) {
 			if (strstr(szTmp, "look")) {
-				pMap = &mapLookTrans[nTime];
+				pMap = &mapLookTrans;
 			} else if (strstr(szTmp, "WeaponMotion")) {
-				pMap = &mapWeaponMotionTrans[nTime];
+				pMap = &mapWeaponMotionTrans;
 			}
 
 			continue;
@@ -216,51 +197,63 @@ bool ReadReducedFile(const char *pszTrans,
 // =======================================================================================================================
 __int64 GetMotionIndexByRuduced(__int64 i64Index,
 								const std::map<__int64, std::string> &mapNewIndex,
-								int nTimeMax,
-								std::map<int, int> mapLookTrans[TIME_LIMIT],
-								std::map<int, int> mapWeaponMotionTrans[TIME_LIMIT])
+								const std::map<int, int> &mapLookTrans,
+								const std::map<int, int> &mapWeaponMotionTrans)
 {
-	for (int iTime = nTimeMax - 1;; --iTime) {
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<__int64, std::string>::const_iterator it = mapNewIndex.find(i64Index);
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		const std::map<__int64, std::string>::const_iterator it = mapNewIndex.find(i64Index);
-		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-		if (it != mapNewIndex.end()) {
-			return it->first;
-		}
-
-		if (iTime < 0) {
-			return -1;
-		}
-
-		//~~~~~~~~~~~~~~~~~~
-		int nLook = 0;
-		int nWeaponMotion = 0;
-		//~~~~~~~~~~~~~~~~~~
-
-		GetIndexInfo(i64Index, nLook, nWeaponMotion);
-		nLook = mapLookTrans[iTime][nLook];
-		nWeaponMotion = mapWeaponMotionTrans[iTime][nWeaponMotion];
-		i64Index = ComboIndexInfo(nLook, nWeaponMotion);
+	if (it != mapNewIndex.end()) {
+		return i64Index;
 	}
 
-	return -2;
+	//~~~~~~~~~~~~~~~~~~
+	int nLook = 0;
+	int nWeaponMotion = 0;
+	//~~~~~~~~~~~~~~~~~~
+
+	GetIndexInfo(i64Index, nLook, nWeaponMotion);
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	const std::map<int, int>::const_iterator itLook = mapLookTrans.find(nLook);
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if (itLook == mapLookTrans.end()) {
+		return -1;
+	}
+
+	nLook = itLook->second;
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	const std::map<int, int>::const_iterator itWeapon = mapWeaponMotionTrans.find(nWeaponMotion);
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if (itWeapon == mapWeaponMotionTrans.end()) {
+		return -1;
+	}
+
+	nWeaponMotion = itWeapon->second;
+	i64Index = ComboIndexInfo(nLook, nWeaponMotion);
+
+	it = mapNewIndex.find(i64Index);
+	if (it != mapNewIndex.end()) {
+		return i64Index;
+	}
+
+	return -1;
 }
 
 // =====================================================================================================================
 // =======================================================================================================================
 std::string GetMotionResByRuduced(__int64 i64Index,
 								  const std::map<__int64, std::string> &mapNewIndex,
-								  int nTimeMax,
-								  std::map<int, int> mapLookTrans[TIME_LIMIT],
-								  std::map<int, int> mapWeaponMotionTrans[TIME_LIMIT])
+								  const std::map<int, int> &mapLookTrans,
+								  const std::map<int, int> &mapWeaponMotionTrans)
 {
-	i64Index = GetMotionIndexByRuduced(i64Index, mapNewIndex, nTimeMax, mapLookTrans, mapWeaponMotionTrans);
+	i64Index = GetMotionIndexByRuduced(i64Index, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
 	if (i64Index == -1) {
 		return "no index";
-	} else if (i64Index == -2) {
-		return "error";
 	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -287,7 +280,7 @@ struct FORMAT_RES_DATA
 // =====================================================================================================================
 // =======================================================================================================================
 
-bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORMAT_RES_DATA> &vecResData, int iTime)
+bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORMAT_RES_DATA> &vecResData)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::map<std::string, std::vector<__int64> > mapRes;
@@ -350,15 +343,6 @@ bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORM
 	}
 
 	fclose(pFile);
-
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
-#ifdef OUTPUT_TMP
-	char szTmpResAna[_MAX_STRING];
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	_snprintf(szTmpResAna, sizeof(szTmpResAna), "ResAna%d.tmp", iTime);
-	SHFileOpCopy("ResAna.out", szTmpResAna);
-#endif
 	return true;
 }
 
@@ -625,26 +609,14 @@ bool SimpleReduce(const std::map<__int64, std::string> &rMapOrgInfo,
 // =======================================================================================================================
 bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 							  const std::map<int, int> &mapLookTrans,
-							  const std::map<int, int> &mapWeaponMotionTrans,
-							  int iTime)
+							  const std::map<int, int> &mapWeaponMotionTrans)
 {
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	FILE *pFile = fopen(pszTransFile, iTime <= 0 ? "w" : "a");
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	FILE *pFile = fopen(pszTransFile, "w");
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	if (NULL == pFile) {
 		return false;
-	}
-
-	//~~~~~~~~~~~~~~~~~~~~~
-	char szTime[_MAX_STRING];
-	//~~~~~~~~~~~~~~~~~~~~~
-
-	_snprintf(szTime, sizeof(szTime), "%d", iTime);
-	WritePrivateProfileString(pszSectionTime, pszKeyAmount, szTime, pszTransFile);
-
-	if (iTime == 0) {
-		fprintf(pFile, "[Data]\n");
 	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -654,7 +626,7 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	for (int i = 0; i < TRANS_TYPE; ++i) {
-		fprintf(pFile, "[%s %d]\n", strTitleArr[i].c_str(), iTime);
+		fprintf(pFile, "*%s\n", strTitleArr[i].c_str());
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		const std::map<int, int> &mapTrans = mapTransArr[i];
@@ -683,14 +655,6 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 
 	fclose(pFile);
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#ifdef OUTPUT_TMP
-	char szTmp3DMotion[_MAX_STRING];
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	_snprintf(szTmp3DMotion, sizeof(szTmp3DMotion), "motion%d.tmp", iTime);
-	SHFileOpCopy(pszNewMotionFile, szTmp3DMotion);
-#endif
 	return true;
 }
 
@@ -698,9 +662,8 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 // =======================================================================================================================
 bool Check(const std::map<__int64, std::string> &mapOrgInfo,
 		   const std::map<__int64, std::string> &mapNewIndex,
-		   int nTimeMax,
-		   std::map<int, int> mapLookTrans[TIME_LIMIT],
-		   std::map<int, int> mapWeaponMotionTrans[TIME_LIMIT])
+		   std::map<int, int> mapLookTrans,
+		   std::map<int, int> mapWeaponMotionTrans)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	int nCount = 0;
@@ -709,19 +672,17 @@ bool Check(const std::map<__int64, std::string> &mapOrgInfo,
 
 	for (; it != mapOrgInfo.end(); ++it) {
 
-		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		__int64 i64Index = it->first;
 		std::string strRes = it->second;
-		std::string strResCmp = GetMotionResByRuduced(i64Index, mapNewIndex, nTimeMax, mapLookTrans,
-													  mapWeaponMotionTrans);
-		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		std::string strResCmp = GetMotionResByRuduced(i64Index, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		if (strRes != strResCmp) {
 
-			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-			__int64 i64IndexInfo = GetMotionIndexByRuduced(i64Index, mapNewIndex, nTimeMax, mapLookTrans,
-														   mapWeaponMotionTrans);
-			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			__int64 i64IndexInfo = GetMotionIndexByRuduced(i64Index, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 			printf("check error Index: %I64d, Res1 %s IndexReduce %I64d Res2 %s", i64Index, strRes.c_str(),
 				   i64IndexInfo, strResCmp.c_str());
@@ -753,24 +714,14 @@ int main()
 	mapIndex = mapOrgInfo;
 
 #ifdef CALC_REDUCE
-	SHFileOpDelete("*.tmp");
-	for (int iTime = 0; iTime < TIME_LIMIT; ++iTime) {
-		printf("Time %d: ", iTime);
-
-		//~~~~~~~~~~~~~~~~~~~~~~~~~~
-		const int LIMIT_SIZE = 150000;
-		//~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-		if (mapIndex.size() <= LIMIT_SIZE) {
-			printf("IndexSize %d <= %d, done\n", mapIndex.size(), LIMIT_SIZE);
-			break;
-		}
+	{
+		SHFileOpDelete("*.tmp");
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		std::vector<FORMAT_RES_DATA> vecResData;
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		AnaResData(mapIndex, vecResData, iTime);
+		AnaResData(mapIndex, vecResData);
 		printf("IndexSize %d ResSize %d\n", mapIndex.size(), vecResData.size());
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -780,23 +731,19 @@ int main()
 
 		CalcTransTable(vecResData, mapLookTrans, mapWeaponMotionTrans);
 		SimpleReduce(mapOrgInfo, vecResData, mapIndex, mapLookTrans, mapWeaponMotionTrans);
-		OutputSimpleReduceResult(mapIndex, mapLookTrans, mapWeaponMotionTrans, iTime);
+		OutputSimpleReduceResult(mapIndex, mapLookTrans, mapWeaponMotionTrans);
 	}
 #endif
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::map<__int64, std::string> mapNewIndex;
-	std::map<int, int> mapLookTrans[TIME_LIMIT];
-	std::map<int, int> mapWeaponMotionTrans[TIME_LIMIT];
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<int, int> mapLookTrans;
+	std::map<int, int> mapWeaponMotionTrans;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	ReadReducedFile(pszNewMotionFile, pszNewMotionFile, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	int nAmount = GetPrivateProfileInt(pszSectionTime, pszKeyAmount, TIME_LIMIT, pszTransFile);
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	Check(mapOrgInfo, mapNewIndex, nAmount, mapLookTrans, mapWeaponMotionTrans);
+	Check(mapOrgInfo, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
 
 	while (gets(szTmp)) {
 
@@ -827,7 +774,7 @@ int main()
 		dwTime = dwTime2;
 
 		for (i = 0; i < COUNTS; ++i) {
-			GetMotionIndexByRuduced(45000100, mapNewIndex, nAmount, mapLookTrans, mapWeaponMotionTrans);
+			GetMotionIndexByRuduced(45000100, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
 		}
 
 		dwTime2 = TimeGet();
@@ -835,7 +782,7 @@ int main()
 		dwTime = dwTime2;
 
 		for (i = 0; i < COUNTS; ++i) {
-			GetMotionIndexByRuduced(60046360115, mapNewIndex, nAmount, mapLookTrans, mapWeaponMotionTrans);
+			GetMotionIndexByRuduced(60046360115, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
 		}
 
 		dwTime2 = TimeGet();
