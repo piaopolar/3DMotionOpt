@@ -9,10 +9,13 @@
 
 #include "StringFormat.h"
 
-const char *pszTransFile = "Trans.ini";
+#define OUTPUT_TMP
+#define CALC_REDUCE
+
+const char *pszTransFile = "./Trans.ini";
 const char *pszSectionTime = "Time";
 const char *pszKeyAmount = "Amount";
-const char *pszNewMotionFile = "New3DMotion.ini";
+const char *pszNewMotionFile = "New3Dmotion.ini";
 const int TIME_LIMIT = 5;
 
 const int _MAX_STRING = 1024;
@@ -22,6 +25,36 @@ const int _MAX_STRING = 1024;
 DWORD TimeGet(void)
 {
 	return timeGetTime();
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool SHFileOpCopy(const char *pszScr, const char *pszDest)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+	SHFILEOPSTRUCT FileOp = { 0 };
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	FileOp.fFlags = FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT;
+	FileOp.pFrom = pszScr;
+	FileOp.pTo = pszDest;
+	FileOp.wFunc = FO_COPY;
+	return SHFileOperation(&FileOp) == 0;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
+bool SHFileOpDelete(const char *pszPath)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+	SHFILEOPSTRUCT FileOp = { 0 };
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	FileOp.fFlags = FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT;
+	FileOp.pFrom = pszPath;
+	FileOp.pTo = NULL;
+	FileOp.wFunc = FO_DELETE;
+	return SHFileOperation(&FileOp) == 0;
 }
 
 // =====================================================================================================================
@@ -133,8 +166,8 @@ bool ReadReducedFile(const char *pszTrans,
 	}
 
 	while (fgets(szLine, sizeof(szLine), pFile)) {
-		if (!strstr(szLine, "[Data]")) {
-			continue;
+		if (strstr(szLine, "[Data]")) {
+			break;
 		}
 	}
 
@@ -191,7 +224,7 @@ __int64 GetMotionIndexByRuduced(__int64 i64Index,
 								std::map<int, int> mapWeaponTrans[TIME_LIMIT],
 								std::map<int, int> mapMotionTrans[TIME_LIMIT])
 {
-	for (int iTime = 0;; ++iTime) {
+	for (int iTime = nTimeMax;; --iTime) {
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		const std::map<__int64, std::string>::const_iterator it = mapNewIndex.find(i64Index);
@@ -201,7 +234,7 @@ __int64 GetMotionIndexByRuduced(__int64 i64Index,
 			return it->first;
 		}
 
-		if (iTime >= nTimeMax) {
+		if (iTime <= 0) {
 			return -1;
 		}
 
@@ -261,7 +294,7 @@ struct FORMAT_RES_DATA
 // =====================================================================================================================
 // =======================================================================================================================
 
-bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORMAT_RES_DATA> &vecResData)
+bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORMAT_RES_DATA> &vecResData, int iTime)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::map<std::string, std::vector<__int64> > mapRes;
@@ -325,6 +358,14 @@ bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORM
 
 	fclose(pFile);
 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+#ifdef OUTPUT_TMP
+	char szTmpResAna[_MAX_STRING];
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	_snprintf(szTmpResAna, sizeof(szTmpResAna), "ResAna%d.tmp", iTime);
+	SHFileOpCopy("ResAna.out", szTmpResAna);
+#endif
 	return true;
 }
 
@@ -500,7 +541,8 @@ bool CalcTransTable(const std::vector<FORMAT_RES_DATA> &vecResData,
 
 // =====================================================================================================================
 // =======================================================================================================================
-bool SimpleReduce(const std::vector<FORMAT_RES_DATA> &vecResData,
+bool SimpleReduce(const std::map<__int64, std::string> &rMapOrgInfo,
+				  const std::vector<FORMAT_RES_DATA> &vecResData,
 				  std::map<__int64, std::string> &mapNewIndex,
 				  std::map<int, int> &mapLookTrans,
 				  std::map<int, int> &mapWeaponTrans,
@@ -518,9 +560,25 @@ bool SimpleReduce(const std::vector<FORMAT_RES_DATA> &vecResData,
 		const FORMAT_RES_DATA &rData = *it;
 		const std::vector<__int64> &rVecIndex = rData.vecIndex;
 		__int64 i64IndexRes = ResPathTransIndex(rData.strRes);
+		bool bIndexResOk = true;
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		if (i64IndexRes <= 0) {
+			bIndexResOk = false;
+		}
+
+		if (bIndexResOk) {
+
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+			std::map<__int64, std::string>::const_iterator it = rMapOrgInfo.find(i64IndexRes);
+			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+			if (it == rMapOrgInfo.end() || it->second != rData.strRes) {
+				bIndexResOk = false;
+			}
+		}
+
+		if (!bIndexResOk) {
 
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			std::vector<__int64>::const_iterator itIndex = rVecIndex.begin();
@@ -609,9 +667,9 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 							  const std::map<int, int> &mapMotionTrans,
 							  int iTime)
 {
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	FILE *pFile = fopen(pszTransFile, iTime <= 1 ? "w" : "a");
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	if (NULL == pFile) {
 		return false;
@@ -648,6 +706,7 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 	}
 
 	fclose(pFile);
+
 	pFile = fopen(pszNewMotionFile, "w");
 	if (NULL == pFile) {
 		return false;
@@ -662,6 +721,15 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 	}
 
 	fclose(pFile);
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#ifdef OUTPUT_TMP
+	char szTmp3DMotion[_MAX_STRING];
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	_snprintf(szTmp3DMotion, sizeof(szTmp3DMotion), "motion%d.tmp", iTime);
+	SHFileOpCopy(pszNewMotionFile, szTmp3DMotion);
+#endif
 	return true;
 }
 
@@ -695,8 +763,8 @@ bool Check(const std::map<__int64, std::string> &mapOrgInfo,
 														   mapWeaponTrans, mapMotionTrans);
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-			printf("check error Index: %I64, Res1 %s IndexReduce %I64d Res2 %s", i64Index, strRes.c_str(), i64IndexInfo,
-				   strResCmp.c_str());
+			printf("check error Index: %I64d, Res1 %s IndexReduce %I64d Res2 %s", i64Index, strRes.c_str(),
+				   i64IndexInfo, strResCmp.c_str());
 			return false;
 		}
 
@@ -723,15 +791,17 @@ int main()
 	ReadOrgFile(szTmp, mapOrgInfo);
 	mapIndex = mapOrgInfo;
 
+#ifdef CALC_REDUCE
+	SHFileOpDelete("*.tmp");
 	for (int iTime = 1; iTime <= TIME_LIMIT; ++iTime) {
 		printf("Time %d: ", iTime);
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~
-		const int LIMIT_SIZE = 100000;
+		const int LIMIT_SIZE = 150000;
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		if (mapIndex.size() <= LIMIT_SIZE) {
-			printf("IndexSize %d <= %d, done\n", iTime, mapIndex.size(), LIMIT_SIZE);
+			printf("IndexSize %d <= %d, done\n", mapIndex.size(), LIMIT_SIZE);
 			break;
 		}
 
@@ -739,7 +809,7 @@ int main()
 		std::vector<FORMAT_RES_DATA> vecResData;
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		AnaResData(mapIndex, vecResData);
+		AnaResData(mapIndex, vecResData, iTime);
 		printf("IndexSize %d ResSize %d\n", mapIndex.size(), vecResData.size());
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -749,9 +819,10 @@ int main()
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		CalcTransTable(vecResData, mapLookTrans, mapWeaponTrans, mapMotionTrans);
-		SimpleReduce(vecResData, mapIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
+		SimpleReduce(mapOrgInfo, vecResData, mapIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans);
 		OutputSimpleReduceResult(mapIndex, mapLookTrans, mapWeaponTrans, mapMotionTrans, iTime);
 	}
+#endif
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::map<__int64, std::string> mapNewIndex;
