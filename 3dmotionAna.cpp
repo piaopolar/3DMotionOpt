@@ -376,9 +376,24 @@ bool ReplaceString(std::string &str, const char *pszFind, const char *pszReplace
 // =======================================================================================================================
 __int64 ResPathTransIndex(const std::string &strIndex)
 {
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::string strRet = strIndex;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
+	const char *pPosMonster = strstr(strRet.c_str(), "monster");
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if (pPosMonster) {
+		ReplaceString(strRet, "monster", "");
+		ReplaceString(strRet, "N/", " ");
+	}
+
+	ReplaceString(strRet, "One-Handed/Axe", "450");
+	ReplaceString(strRet, "One-Handed/Sword", "420");
+	ReplaceString(strRet, "Shield-With/Sword", "742");
+	ReplaceString(strRet, "Shield-With/Axe", "745");
+	ReplaceString(strRet, "Shield-With/Dagger", "749");
+	ReplaceString(strRet, "Two-Handed/Axe", "651");
+	ReplaceString(strRet, "Two-Handed/Dagger", "691");
+	ReplaceString(strRet, "Two-Handed/Sword", "621");
 
 	ReplaceString(strRet, ".c3", "");
 	ReplaceString(strRet, ".C3", "");
@@ -386,13 +401,17 @@ __int64 ResPathTransIndex(const std::string &strIndex)
 	ReplaceString(strRet, "c3", "");
 	ReplaceString(strRet, "C3", "");
 
-	//~~~~~~~~
-	int nLook;
-	int nWeapon;
-	int nMotion;
-	//~~~~~~~~
+	//~~~~~~~~~~~~
+	int nLook = 0;
+	int nWeapon = 0;
+	int nMotion = 0;
+	//~~~~~~~~~~~~
 
-	if (3 == sscanf(strRet.c_str(), "%d%d%d", &nLook, &nWeapon, &nMotion)) {
+	if (pPosMonster) {
+		if (2 == sscanf(strRet.c_str(), "%d%d", &nLook, &nMotion)) {
+			return nLook * (__int64) 10000000 + nWeapon * 10000 + nMotion;
+		}
+	} else if (3 == sscanf(strRet.c_str(), "%d%d%d", &nLook, &nWeapon, &nMotion)) {
 		return nLook * (__int64) 10000000 + nWeapon * 10000 + nMotion;
 	}
 
