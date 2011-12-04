@@ -1,6 +1,4 @@
 #pragma warning(disable : 4786)
-#include <windows.h>
-#include "Mmsystem.h"
 #include <algorithm>
 #include <cstdio>
 #include <map>
@@ -9,52 +7,14 @@
 
 #include "StringFormat.h"
 
+#define PRINT_DETAIL
 #define OUTPUT_TMP
 #define CALC_REDUCE
 
 const char *pszTransFile = "./BodyMotionTrans.ini";
-const char *pszSectionTime = "Time";
-const char *pszKeyAmount = "Amount";
 const char *pszNewMotionFile = "New3Dmotion.ini";
 
 const int _MAX_STRING = 1024;
-
-// =====================================================================================================================
-// =======================================================================================================================
-DWORD TimeGet(void)
-{
-	return timeGetTime();
-}
-
-// =====================================================================================================================
-// =======================================================================================================================
-bool SHFileOpCopy(const char *pszScr, const char *pszDest)
-{
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
-	SHFILEOPSTRUCT FileOp = { 0 };
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	FileOp.fFlags = FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT;
-	FileOp.pFrom = pszScr;
-	FileOp.pTo = pszDest;
-	FileOp.wFunc = FO_COPY;
-	return SHFileOperation(&FileOp) == 0;
-}
-
-// =====================================================================================================================
-// =======================================================================================================================
-bool SHFileOpDelete(const char *pszPath)
-{
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
-	SHFILEOPSTRUCT FileOp = { 0 };
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	FileOp.fFlags = FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT;
-	FileOp.pFrom = pszPath;
-	FileOp.pTo = NULL;
-	FileOp.wFunc = FO_DELETE;
-	return SHFileOperation(&FileOp) == 0;
-}
 
 // =====================================================================================================================
 // =======================================================================================================================
@@ -305,7 +265,6 @@ bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORM
 		fprintf(pFile, "[%s]	%d	%d	%d\n", data.strRes.c_str(), data.nIndexSize, nCountRes, nCountIndex);
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#define PRINT_DETAIL
 #ifdef PRINT_DETAIL
 		std::vector<__int64>::const_iterator it = data.vecIndex.begin();
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -711,8 +670,6 @@ int main()
 
 #ifdef CALC_REDUCE
 	{
-		SHFileOpDelete("*.tmp");
-
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		std::vector<FORMAT_RES_DATA> vecResData;
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -745,53 +702,5 @@ int main()
 	ReadIndexFile(pszNewMotionFile, mapNewIndex);
 
 	Check(mapOrgInfo, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
-
-	while (gets(szTmp)) {
-
-		//~~~~~~~~~~~~~~~~~~~~~~
-		DWORD dwTime = TimeGet();
-		std::string strInfo = "";
-		DWORD dwTime2 = dwTime;
-		const int COUNTS = 100000;
-		int i = 0;
-		//~~~~~~~~~~~~~~~~~~~~~~
-
-		for (i = 0; i < COUNTS; ++i) {
-
-			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-			std::map<__int64, std::string>::iterator it = mapOrgInfo.find(45000100);
-			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		} dwTime2 = TimeGet();
-		strInfo += (FORMAT("%d ") << dwTime2 - dwTime);
-		dwTime = dwTime2;
-
-		for (i = 0; i < COUNTS; ++i) {
-
-			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-			std::map<__int64, std::string>::iterator it = mapOrgInfo.find(i);
-			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		} dwTime2 = TimeGet();
-		strInfo += (FORMAT("%d ") << dwTime2 - dwTime);
-		dwTime = dwTime2;
-
-		for (i = 0; i < COUNTS; ++i) {
-			GetMotionIndexByRuduced(45000100, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
-		}
-
-		dwTime2 = TimeGet();
-		strInfo += (FORMAT("%d ") << dwTime2 - dwTime);
-		dwTime = dwTime2;
-
-		for (i = 0; i < COUNTS; ++i) {
-			GetMotionIndexByRuduced(60046360115, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
-		}
-
-		dwTime2 = TimeGet();
-		strInfo += (FORMAT("%d ") << dwTime2 - dwTime);
-		dwTime = dwTime2;
-
-		printf("Time Cost %s", strInfo.c_str());
-	}
-
 	return 0;
 }
