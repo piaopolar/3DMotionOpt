@@ -8,7 +8,6 @@
 #include "StringFormat.h"
 
 #define PRINT_DETAIL
-#define OUTPUT_TMP
 #define CALC_REDUCE
 
 const char *pszTransFile = "./BodyMotionTrans.ini";
