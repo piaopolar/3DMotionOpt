@@ -12,7 +12,7 @@
 #define OUTPUT_TMP
 #define CALC_REDUCE
 
-const char *pszTransFile = "./Trans.ini";
+const char *pszTransFile = "./BodyMotionTrans.ini";
 const char *pszSectionTime = "Time";
 const char *pszKeyAmount = "Amount";
 const char *pszNewMotionFile = "New3Dmotion.ini";
@@ -74,7 +74,7 @@ __int64 ComboIndexInfo(int nLook, int nWeaponMotion)
 
 // =====================================================================================================================
 // =======================================================================================================================
-bool ReadOrgFile(const char *psz3dmotion, std::map<__int64, std::string> &mapOrgInfo)
+bool ReadIndexFile(const char *psz3dmotion, std::map<__int64, std::string> &mapOrgInfo)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	FILE *pFile = fopen(psz3dmotion, "r");
@@ -114,51 +114,19 @@ bool ReadOrgFile(const char *psz3dmotion, std::map<__int64, std::string> &mapOrg
 
 // =====================================================================================================================
 // =======================================================================================================================
-bool ReadReducedFile(const char *pszTrans,
-					 const char *pszNewMotion,
-					 std::map<__int64, std::string> &mapNewIndex,
-					 std::map<int, int> &mapLookTrans,
-					 std::map<int, int> &mapWeaponMotionTrans)
+bool ReadReducedFile(const char *pszTrans, std::map<int, int> &mapLookTrans, std::map<int, int> &mapWeaponMotionTrans)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	FILE *pFile = fopen(pszNewMotion, "r");
+	FILE *pFile = fopen(pszTransFile, "r");
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	if (NULL == pFile) {
-		printf("open %s failed\n", pszNewMotion);
-		return false;
-	}
-
-	//~~~~~~~~~~~~~~~~~~~~~
-	char szLine[_MAX_STRING];
-	//~~~~~~~~~~~~~~~~~~~~~
-
-	while (fgets(szLine, sizeof(szLine), pFile)) {
-		if (szLine[0] == 0 || szLine[0] == ';') {
-			continue;
-		}
-
-		//~~~~~~~~~~~~~~~~~~~~
-		__int64 i64Index = 0;
-		char szRes[_MAX_STRING];
-		//~~~~~~~~~~~~~~~~~~~~
-
-		if (2 == sscanf(szLine, "%I64d=%s", &i64Index, szRes)) {
-			mapNewIndex[i64Index] = szRes;
-		} else {
-			printf("error line [%s]\n", szLine);
-		}
-	}
-
-	fclose(pFile);
-
-	pFile = fopen(pszTransFile, "r");
 	if (NULL == pFile) {
 		printf("open %s failed\n", pszTransFile);
 		return false;
 	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	char szLine[_MAX_STRING];
 	std::map<int, int> mapTmp;
 	std::map<int, int> *pMap = &mapTmp;
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -195,6 +163,42 @@ bool ReadReducedFile(const char *pszTrans,
 
 // =====================================================================================================================
 // =======================================================================================================================
+__int64 GetMotionReducedIndex(__int64 i64Index,
+							  const std::map<int, int> &mapLookTrans,
+							  const std::map<int, int> &mapWeaponMotionTrans)
+{
+	//~~~~~~~~~~~~~~~~~~
+	int nLook = 0;
+	int nWeaponMotion = 0;
+	//~~~~~~~~~~~~~~~~~~
+
+	GetIndexInfo(i64Index, nLook, nWeaponMotion);
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	const std::map<int, int>::const_iterator itLook = mapLookTrans.find(nLook);
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if (itLook == mapLookTrans.end()) {
+		return 0;
+	}
+
+	nLook = itLook->second;
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	const std::map<int, int>::const_iterator itWeapon = mapWeaponMotionTrans.find(nWeaponMotion);
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if (itWeapon == mapWeaponMotionTrans.end()) {
+		return 0;
+	}
+
+	nWeaponMotion = itWeapon->second;
+	i64Index = ComboIndexInfo(nLook, nWeaponMotion);
+	return i64Index;
+}
+
+// =====================================================================================================================
+// =======================================================================================================================
 __int64 GetMotionIndexByRuduced(__int64 i64Index,
 								const std::map<__int64, std::string> &mapNewIndex,
 								const std::map<int, int> &mapLookTrans,
@@ -208,34 +212,7 @@ __int64 GetMotionIndexByRuduced(__int64 i64Index,
 		return i64Index;
 	}
 
-	//~~~~~~~~~~~~~~~~~~
-	int nLook = 0;
-	int nWeaponMotion = 0;
-	//~~~~~~~~~~~~~~~~~~
-
-	GetIndexInfo(i64Index, nLook, nWeaponMotion);
-
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	const std::map<int, int>::const_iterator itLook = mapLookTrans.find(nLook);
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	if (itLook == mapLookTrans.end()) {
-		return -1;
-	}
-
-	nLook = itLook->second;
-
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	const std::map<int, int>::const_iterator itWeapon = mapWeaponMotionTrans.find(nWeaponMotion);
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	if (itWeapon == mapWeaponMotionTrans.end()) {
-		return -1;
-	}
-
-	nWeaponMotion = itWeapon->second;
-	i64Index = ComboIndexInfo(nLook, nWeaponMotion);
-
+	i64Index = GetMotionReducedIndex(i64Index, mapLookTrans, mapWeaponMotionTrans);
 	it = mapNewIndex.find(i64Index);
 	if (it != mapNewIndex.end()) {
 		return i64Index;
@@ -640,7 +617,7 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	const int TRANS_TYPE = 2;
-	std::string strTitleArr[TRANS_TYPE] = { "look", "WeaponMotion" };
+	std::string strTitleArr[TRANS_TYPE] = { "Look", "WeaponMotion" };
 	const std::map<int, int> mapTransArr[TRANS_TYPE] = { mapLookTrans, mapWeaponMotionTrans };
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -729,7 +706,7 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	gets(szTmp);
-	ReadOrgFile(szTmp, mapOrgInfo);
+	ReadIndexFile(szTmp, mapOrgInfo);
 	mapIndex = mapOrgInfo;
 
 #ifdef CALC_REDUCE
@@ -754,13 +731,18 @@ int main()
 	}
 #endif
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	std::map<__int64, std::string> mapNewIndex;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::map<int, int> mapLookTrans;
 	std::map<int, int> mapWeaponMotionTrans;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	ReadReducedFile(pszTransFile, mapLookTrans, mapWeaponMotionTrans);
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	std::map<__int64, std::string> mapNewIndex;
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	ReadReducedFile(pszNewMotionFile, pszNewMotionFile, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
+	ReadIndexFile(pszNewMotionFile, mapNewIndex);
 
 	Check(mapOrgInfo, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
 
