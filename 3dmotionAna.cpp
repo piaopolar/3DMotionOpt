@@ -97,7 +97,7 @@ bool ReadReducedFile(const char *pszTrans, std::map<int, int> &mapLookTrans, std
 		//~~~~~~~~~~~~~~~~~~~~
 
 		if (szLine[0] == '*' && 1 == sscanf(szLine + 1, "%s", szTmp)) {
-			if (strstr(szTmp, "look")) {
+			if (strstr(szTmp, "Look")) {
 				pMap = &mapLookTrans;
 			} else if (strstr(szTmp, "WeaponMotion")) {
 				pMap = &mapWeaponMotionTrans;
