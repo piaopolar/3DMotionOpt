@@ -89,18 +89,10 @@ LINK32=link.exe
 
 SOURCE=.\3dmotionAna.cpp
 # End Source File
-# Begin Source File
-
-SOURCE=.\StringFormat.cpp
-# End Source File
 # End Group
 # Begin Group "Header Files"
 
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
-# Begin Source File
-
-SOURCE=.\StringFormat.h
-# End Source File
 # End Group
 # Begin Group "Resource Files"
 

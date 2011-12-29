@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "StringFormat.h"
 
 #define PRINT_DETAIL
 #define CALC_REDUCE
