@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-
 #define PRINT_DETAIL
 #define CALC_REDUCE
 
@@ -13,9 +12,10 @@ const char *pszTransFile = "./BodyMotionTrans.ini";
 const char *pszNewMotionFile = "New3Dmotion.ini";
 
 const int _MAX_STRING = 1024;
+const int REDUCE_VERSION = 2;
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 bool GetIndexInfo(__int64 i64Index, int &rLook, int &rWeaponMotion)
 {
 	rLook = i64Index / 10000000;
@@ -23,15 +23,32 @@ bool GetIndexInfo(__int64 i64Index, int &rLook, int &rWeaponMotion)
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 __int64 ComboIndexInfo(int nLook, int nWeaponMotion)
 {
 	return(__int64) 10000000 * nLook + nWeaponMotion;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
+__int64 MountRuleTrans(__int64 i64Index)
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	__int64 idxRet = i64Index;
+	__int64 BODY_MOTION_MOUNT_MUTI = 10000000000;
+	__int64 i64MountType = i64Index / BODY_MOTION_MOUNT_MUTI % 100;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if (i64MountType > 3) {
+		idxRet += (1 - i64MountType) * BODY_MOTION_MOUNT_MUTI;
+	}
+
+	return idxRet;
+}
+
+// ============================================================================
+// ==============================================================================
 bool ReadIndexFile(const char *psz3dmotion, std::map<__int64, std::string> &mapOrgInfo)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,10 +87,15 @@ bool ReadIndexFile(const char *psz3dmotion, std::map<__int64, std::string> &mapO
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
-bool ReadReducedFile(const char *pszTrans, std::map<int, int> &mapLookTrans, std::map<int, int> &mapWeaponMotionTrans)
+// ============================================================================
+// ==============================================================================
+bool ReadReducedFile(const char *pszTrans,
+					 std::map<int, int> &mapLookTrans,
+					 std::map<int, int> &mapWeaponMotionTrans,
+					 int &nReduceVer)
 {
+	nReduceVer = 0;
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	FILE *pFile = fopen(pszTransFile, "r");
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -100,6 +122,8 @@ bool ReadReducedFile(const char *pszTrans, std::map<int, int> &mapLookTrans, std
 				pMap = &mapLookTrans;
 			} else if (strstr(szTmp, "WeaponMotion")) {
 				pMap = &mapWeaponMotionTrans;
+			} else if (strstr(szTmp, "Ver")) {
+				sscanf(szLine, "%s %d", szTmp, &nReduceVer);
 			}
 
 			continue;
@@ -119,8 +143,8 @@ bool ReadReducedFile(const char *pszTrans, std::map<int, int> &mapLookTrans, std
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 __int64 GetMotionReducedIndex(__int64 i64Index,
 							  const std::map<int, int> &mapLookTrans,
 							  const std::map<int, int> &mapWeaponMotionTrans)
@@ -155,8 +179,8 @@ __int64 GetMotionReducedIndex(__int64 i64Index,
 	return i64Index;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 __int64 GetMotionIndexByRuduced(__int64 i64Index,
 								const std::map<__int64, std::string> &mapNewIndex,
 								const std::map<int, int> &mapLookTrans,
@@ -170,6 +194,12 @@ __int64 GetMotionIndexByRuduced(__int64 i64Index,
 		return i64Index;
 	}
 
+	i64Index = MountRuleTrans(i64Index);
+	it = mapNewIndex.find(i64Index);
+	if (it != mapNewIndex.end()) {
+		return i64Index;
+	}
+
 	i64Index = GetMotionReducedIndex(i64Index, mapLookTrans, mapWeaponMotionTrans);
 	it = mapNewIndex.find(i64Index);
 	if (it != mapNewIndex.end()) {
@@ -179,8 +209,8 @@ __int64 GetMotionIndexByRuduced(__int64 i64Index,
 	return -1;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 std::string GetMotionResByRuduced(__int64 i64Index,
 								  const std::map<__int64, std::string> &mapNewIndex,
 								  const std::map<int, int> &mapLookTrans,
@@ -212,8 +242,8 @@ struct FORMAT_RES_DATA
 	}
 };
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 
 bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORMAT_RES_DATA> &vecResData)
 {
@@ -280,8 +310,8 @@ bool AnaResData(const std::map<__int64, std::string> &mapIndex, std::vector<FORM
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 bool ReplaceString(std::string &str, const char *pszFind, const char *pszReplace)
 {
 	if (!pszFind || strlen(pszFind) <= 0) {
@@ -306,8 +336,8 @@ bool ReplaceString(std::string &str, const char *pszFind, const char *pszReplace
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 __int64 ResPathTransIndex(const std::string &strIndex)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -352,8 +382,8 @@ __int64 ResPathTransIndex(const std::string &strIndex)
 	return 0;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 int CalMapMaxSecondFirst(const std::map<int, int> &mapCount)
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -372,8 +402,8 @@ int CalMapMaxSecondFirst(const std::map<int, int> &mapCount)
 	return nFirst;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 bool CalcTransTable(const std::vector<FORMAT_RES_DATA> &vecResData,
 					std::map<int, int> &mapLookTrans,
 					std::map<int, int> &mapWeaponMotionTrans)
@@ -452,8 +482,8 @@ bool CalcTransTable(const std::vector<FORMAT_RES_DATA> &vecResData,
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 bool SimpleReduce(const std::map<__int64, std::string> &rMapOrgInfo,
 				  const std::vector<FORMAT_RES_DATA> &vecResData,
 				  std::map<__int64, std::string> &mapNewIndex,
@@ -498,9 +528,21 @@ bool SimpleReduce(const std::map<__int64, std::string> &rMapOrgInfo,
 
 			for (; itIndex != rVecIndex.end(); ++itIndex) {
 
-				//~~~~~~~~~~~~~~~~~~~~~~~~
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 				__int64 i64Index = *itIndex;
-				//~~~~~~~~~~~~~~~~~~~~~~~~
+				__int64 i64IndexRuleTrans = MountRuleTrans(i64Index);
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+				if (i64IndexRuleTrans != i64Index) {
+
+					//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+					const std::map<__int64, std::string>::const_iterator itRule = rMapOrgInfo.find(i64IndexRuleTrans);
+					//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+					if (itRule != rMapOrgInfo.end() && itRule->second == rData.strRes) {
+						continue;
+					}
+				}
 
 				mapNewIndex[i64Index] = rData.strRes;
 			}
@@ -520,11 +562,23 @@ bool SimpleReduce(const std::map<__int64, std::string> &rMapOrgInfo,
 
 			for (; itIndex != rVecIndex.end(); ++itIndex) {
 
-				//~~~~~~~~~~~~~~~~~~~~~~~~
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 				int nIndexLook = 0;
 				int nIndexWeaponMotion = 0;
 				__int64 i64Index = *itIndex;
-				//~~~~~~~~~~~~~~~~~~~~~~~~
+				__int64 i64IndexRuleTrans = MountRuleTrans(i64Index);
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+				if (i64IndexRuleTrans != i64Index) {
+
+					//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+					const std::map<__int64, std::string>::const_iterator itRule = rMapOrgInfo.find(i64IndexRuleTrans);
+					//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+					if (itRule != rMapOrgInfo.end() && itRule->second == rData.strRes) {
+						continue;
+					}
+				}
 
 				GetIndexInfo(i64Index, nIndexLook, nIndexWeaponMotion);
 
@@ -558,8 +612,8 @@ bool SimpleReduce(const std::map<__int64, std::string> &rMapOrgInfo,
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 							  const std::map<int, int> &mapLookTrans,
 							  const std::map<int, int> &mapWeaponMotionTrans)
@@ -571,6 +625,8 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 	if (NULL == pFile) {
 		return false;
 	}
+
+	fprintf(pFile, "*Ver %d\n", REDUCE_VERSION);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	const int TRANS_TYPE = 2;
@@ -611,8 +667,8 @@ bool OutputSimpleReduceResult(const std::map<__int64, std::string> &mapNewIndex,
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 bool Check(const std::map<__int64, std::string> &mapOrgInfo,
 		   const std::map<__int64, std::string> &mapNewIndex,
 		   std::map<int, int> mapLookTrans,
@@ -652,8 +708,8 @@ bool Check(const std::map<__int64, std::string> &mapOrgInfo,
 	return true;
 }
 
-// =====================================================================================================================
-// =======================================================================================================================
+// ============================================================================
+// ==============================================================================
 int main()
 {
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -665,15 +721,15 @@ int main()
 	gets(szTmp);
 	ReadIndexFile(szTmp, mapOrgInfo);
 	mapIndex = mapOrgInfo;
-
-#ifdef CALC_REDUCE
 	{
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#ifdef CALC_REDUCE
 		std::vector<FORMAT_RES_DATA> vecResData;
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		AnaResData(mapIndex, vecResData);
 		printf("IndexSize %d ResSize %d\n", mapIndex.size(), vecResData.size());
+#endif
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		std::map<int, int> mapLookTrans;
@@ -684,14 +740,14 @@ int main()
 		SimpleReduce(mapOrgInfo, vecResData, mapIndex, mapLookTrans, mapWeaponMotionTrans);
 		OutputSimpleReduceResult(mapIndex, mapLookTrans, mapWeaponMotionTrans);
 	}
-#endif
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	int nReduceVer;
 	std::map<int, int> mapLookTrans;
 	std::map<int, int> mapWeaponMotionTrans;
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	ReadReducedFile(pszTransFile, mapLookTrans, mapWeaponMotionTrans);
+	ReadReducedFile(pszTransFile, mapLookTrans, mapWeaponMotionTrans, nReduceVer);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	std::map<__int64, std::string> mapNewIndex;
@@ -700,5 +756,7 @@ int main()
 	ReadIndexFile(pszNewMotionFile, mapNewIndex);
 
 	Check(mapOrgInfo, mapNewIndex, mapLookTrans, mapWeaponMotionTrans);
+
+	while (getchar());
 	return 0;
 }
